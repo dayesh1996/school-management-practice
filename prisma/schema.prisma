@@ -1,0 +1,355 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String     @id @default(uuid())
+  email      String     @unique
+  password   String
+  role       String
+  firstName  String     @map("first_name")
+  lastName   String     @map("last_name")
+  phone      String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt      @map("updated_at")
+
+  students   Student[]
+  parents    Parent[]
+  teachers   Teacher[]   
+  auditLogs  AuditLog[] @relation("UserAuditLogs")
+}
+
+model Student {
+  id           String        @id @default(uuid())
+  admissionNo  String        @map("admission_no")
+  userId       String        @map("user_id")
+  dob          DateTime
+  gender       String
+  status       String
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt      @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id])
+  enrollments  Enrollment[]
+  attendances  Attendance[]
+  invoices     Invoice[]
+  payments     Payment[]
+  transportAssignments TransportAssignment[]
+  roomAllocations      RoomAllocation[]
+}
+
+model Parent {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  relation   String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model Teacher {
+  id            String              @id @default(uuid())
+  userId        String              @map("user_id")
+  qualification String
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  user          User                @relation(fields: [userId], references: [id])
+  assignments   TeacherAssignment[]
+}
+
+model Class {
+  id         String         @id @default(uuid())
+  name       String
+  gradeLevel Int            @map("grade_level")
+
+  sections   Section[]
+  enrollments Enrollment[]
+  feeStructures FeeStructure[]
+  exams      Exam[]
+  timetableSlots TimetableSlot[]
+}
+
+model Section {
+  id        String        @id @default(uuid())
+  classId   String        @map("class_id")
+  name      String
+  capacity  Int
+
+  class     Class         @relation(fields: [classId], references: [id])
+  enrollments Enrollment[]
+  timetableSlots TimetableSlot[]
+  exams     Exam[]
+}
+
+model Enrollment {
+  id          String   @id @default(uuid())
+  studentId   String   @map("student_id")
+  classId     String   @map("class_id")
+  sectionId   String   @map("section_id")
+  academicYear String  @map("academic_year")
+  enrolledAt  DateTime @default(now()) @map("enrolled_at")
+
+  student     Student  @relation(fields: [studentId], references: [id])
+  class       Class    @relation(fields: [classId], references: [id])
+  section     Section  @relation(fields: [sectionId], references: [id])
+}
+
+model Subject {
+  id         String   @id @default(uuid())
+  name       String
+  code       String
+  syllabusRef String  @map("syllabus_ref")
+
+  teacherAssignments TeacherAssignment[]
+  examResults        ExamResult[]
+  timetableSlots     TimetableSlot[]
+}
+
+model TeacherAssignment {
+  id         String   @id @default(uuid())
+  teacherId  String   @map("teacher_id")
+  classId    String   @map("class_id")
+  subjectId  String   @map("subject_id")
+
+  teacher    Teacher  @relation(fields: [teacherId], references: [id])
+  class      Class    @relation(fields: [classId], references: [id])
+  subject    Subject  @relation(fields: [subjectId], references: [id])
+}
+
+model TimetableSlot {
+  id         String   @id @default(uuid())
+  classId    String   @map("class_id")
+  sectionId  String   @map("section_id")
+  subjectId  String   @map("subject_id")
+  teacherId  String   @map("teacher_id")
+  dayOfWeek  Int      @map("day_of_week")
+  startTime  DateTime @map("start_time")
+  endTime    DateTime @map("end_time")
+  room       String
+
+  class      Class    @relation(fields: [classId], references: [id])
+  section    Section  @relation(fields: [sectionId], references: [id])
+  subject    Subject  @relation(fields: [subjectId], references: [id])
+  teacher    Teacher  @relation(fields: [teacherId], references: [id])
+}
+
+model Attendance {
+  id          String   @id @default(uuid())
+  studentId   String   @map("student_id")
+  date        DateTime
+  period      Int
+  status      String
+  recordedBy  String   @map("recorded_by")
+  recordedAt  DateTime @default(now()) @map("recorded_at")
+
+  student     Student  @relation(fields: [studentId], references: [id])
+  recorder    User     @relation(fields: [recordedBy], references: [id])
+}
+
+model FeeStructure {
+  id           String     @id @default(uuid())
+  classId      String     @map("class_id")
+  name         String
+  effectiveFrom DateTime  @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+
+  class        Class      @relation(fields: [classId], references: [id])
+  feeItems     FeeItem[]
+  invoices     Invoice[]
+}
+
+model FeeItem {
+  id             String        @id @default(uuid())
+  feeStructureId String        @map("fee_structure_id")
+  name           String
+  amount         Decimal
+  recurring      Boolean
+
+  feeStructure   FeeStructure  @relation(fields: [feeStructureId], references: [id])
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  studentId      String        @map("student_id")
+  feeStructureId String        @map("fee_structure_id")
+  totalAmount    Decimal       @map("total_amount")
+  status         String
+  issuedAt       DateTime      @map("issued_at")
+  dueDate        DateTime      @map("due_date")
+
+  student        Student       @relation(fields: [studentId], references: [id])
+  feeStructure   FeeStructure  @relation(fields: [feeStructureId], references: [id])
+  payments       Payment[]
+}
+
+model Payment {
+  id         String   @id @default(uuid())
+  invoiceId  String   @map("invoice_id")
+  studentId  String   @map("student_id")
+  amount     Decimal
+  method     String
+  status     String
+  paidAt     DateTime @map("paid_at")
+
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  student    Student  @relation(fields: [studentId], references: [id])
+}
+
+model Exam {
+  id         String   @id @default(uuid())
+  name       String
+  type       String
+  startDate  DateTime @map("start_date")
+  endDate    DateTime @map("end_date")
+  classId    String   @map("class_id")
+  sectionId  String   @map("section_id")
+
+  class      Class    @relation(fields: [classId], references: [id])
+  section    Section  @relation(fields: [sectionId], references: [id])
+  results    ExamResult[]
+}
+
+model ExamResult {
+  id         String   @id @default(uuid())
+  examId     String   @map("exam_id")
+  studentId  String   @map("student_id")
+  subjectId  String   @map("subject_id")
+  marks      Decimal
+  grade      String
+  publishedAt DateTime @map("published_at")
+
+  exam       Exam     @relation(fields: [examId], references: [id])
+  student    Student  @relation(fields: [studentId], references: [id])
+  subject    Subject  @relation(fields: [subjectId], references: [id])
+}
+
+model LibraryBook {
+  id              String     @id @default(uuid())
+  title           String
+  author          String
+  isbn            String
+  copiesTotal     Int        @map("copies_total")
+  copiesAvailable Int        @map("copies_available")
+
+  copies          BookCopy[]
+}
+
+model BookCopy {
+  id       String     @id @default(uuid())
+  bookId   String     @map("book_id")
+  barcode  String
+  status   String
+
+  book     LibraryBook @relation(fields: [bookId], references: [id])
+  issues   BookIssue[]
+}
+
+model BookIssue {
+  id         String   @id @default(uuid())
+  copyId     String   @map("copy_id")
+  issuedTo   String   @map("issued_to")
+  issuedBy   String   @map("issued_by")
+  issuedAt   DateTime @map("issued_at")
+  dueAt      DateTime @map("due_at")
+  returnedAt DateTime?
+  fine       Decimal?
+
+  copy       BookCopy @relation(fields: [copyId], references: [id])
+  student    Student  @relation("IssuedToStudent", fields: [issuedTo], references: [id])
+  staff      User     @relation("IssuedByUser", fields: [issuedBy], references: [id])
+}
+
+model TransportRoute {
+  id    String   @id @default(uuid())
+  name  String
+  geo   String
+
+  stops RouteStop[]
+  assignments TransportAssignment[]
+}
+
+model Vehicle {
+  id          String   @id @default(uuid())
+  regNo       String   @map("reg_no")
+  driverName  String   @map("driver_name")
+
+  assignments TransportAssignment[]
+}
+
+model RouteStop {
+  id        String   @id @default(uuid())
+  routeId   String   @map("route_id")
+  name      String
+  latitude  Float
+  longitude Float
+
+  route     TransportRoute @relation(fields: [routeId], references: [id])
+  assignments TransportAssignment[]
+}
+
+model TransportAssignment {
+  id         String   @id @default(uuid())
+  studentId  String   @map("student_id")
+  routeId    String   @map("route_id")
+  stopId     String   @map("stop_id")
+  vehicleId  String   @map("vehicle_id")
+
+  student    Student  @relation(fields: [studentId], references: [id])
+  route      TransportRoute @relation(fields: [routeId], references: [id])
+  stop       RouteStop @relation(fields: [stopId], references: [id])
+  vehicle    Vehicle   @relation(fields: [vehicleId], references: [id])
+}
+
+model Hostel {
+  id       String  @id @default(uuid())
+  name     String
+  location String
+
+  rooms    Room[]
+}
+
+model Room {
+  id        String  @id @default(uuid())
+  hostelId  String  @map("hostel_id")
+  roomNo    String  @map("room_no")
+  capacity  Int
+
+  hostel    Hostel  @relation(fields: [hostelId], references: [id])
+  allocations RoomAllocation[]
+}
+
+model RoomAllocation {
+  id           String   @id @default(uuid())
+  roomId       String   @map("room_id")
+  studentId    String   @map("student_id")
+  allocatedFrom DateTime @map("allocated_from")
+  allocatedTo   DateTime @map("allocated_to")
+
+  room         Room     @relation(fields: [roomId], references: [id])
+  student      Student  @relation(fields: [studentId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String
+  payload   Json
+  status    String
+  sentAt    DateTime @map("sent_at")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  entity     String
+  entityId   String   @map("entity_id")
+  action     String
+  byUser     String   @map("by_user")
+  diff       Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation("UserAuditLogs", fields: [byUser], references: [id])
+}
